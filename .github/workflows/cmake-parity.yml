@@ -24,6 +24,16 @@ concurrency:
   group: cmake-parity-${{ github.ref }}
   cancel-in-progress: true
 
+# Deterministic single-node MPI wireup. GitHub runners' network namespaces
+# (unusual/multiple NIC setup) break OpenMPI's default TCP self-test, which
+# makes every -np 3 suite fail identically under BOTH build systems while
+# all serial runs pass (upstream's own runner CI sidesteps this by forcing
+# MPINUMPROC=1). Force the shared-memory BTL and loopback OOB addressing.
+env:
+  OMPI_MCA_btl: self,vader
+  OMPI_MCA_pml: ob1
+  OMPI_MCA_oob_tcp_if_include: lo
+
 jobs:
   # -----------------------------------------------------------------------
   # The core regression gate: legacy build == CMake build.
@@ -43,6 +53,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential ninja-build openmpi-bin libopenmpi-dev \
             libhdf5-dev libxml2-dev hdf5-tools gfortran zlib1g-dev
+
+      # Fail fast, with the launcher's own stderr as the annotation, if the
+      # runner cannot start the -np 3 ranks the quickTest suites need.
+      - name: MPI sanity (mpirun -np 3)
+        run: bash cmake/ci/run_logged.sh mpi-sanity mpirun -np 3 hostname
 
       # The legacy build sed-embeds `git describe` output directly into
       # Config/version_info.h and fails to compile when no tag is reachable
@@ -195,6 +210,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential ninja-build openmpi-bin libopenmpi-dev \
             libhdf5-dev libxml2-dev hdf5-tools gfortran zlib1g-dev
+
+      # Fail fast, with the launcher's own stderr as the annotation, if the
+      # runner cannot start the -np 3 ranks the quickTest suites need.
+      - name: MPI sanity (mpirun -np 3)
+        run: bash cmake/ci/run_logged.sh mpi-sanity mpirun -np 3 hostname
 
       - name: Ensure a reachable version tag (legacy build requires one)
         if: matrix.build == 'legacy'
