@@ -111,21 +111,26 @@ jobs:
             --legacy-prefix install-legacy --cmake-prefix install-cmake
 
       - name: Consumer check (heat tutorial app vs both install trees)
-        run: |
-          bash cmake/ci/consumer_check.sh install-legacy install-cmake
+        run: >
+          bash cmake/ci/run_logged.sh consumer-check bash
+          cmake/ci/consumer_check.sh "$PWD/install-legacy" "$PWD/install-cmake"
 
       - name: Uninstall / reinstall round trip (re-runs parity gate)
-        run: |
-          cmake --build build-cmake --target uninstall
-          if [ -n "$(ls -A install-cmake 2>/dev/null)" ]; then
-            echo "::error::uninstall left files behind:"
-            find install-cmake -type f | head
-            exit 1
-          fi
-          cmake --install build-cmake
-          bash cmake/ci/parity_check.sh \
-            --legacy-obj OBJ --cmake-build build-cmake \
-            --legacy-prefix install-legacy --cmake-prefix install-cmake
+        run: >
+          bash cmake/ci/run_logged.sh uninstall-roundtrip bash -c '
+            set -e
+            cmake --build build-cmake --target uninstall
+            if [ -n "$(ls -A install-cmake 2>/dev/null)" ]; then
+              echo "uninstall left files behind:"
+              find install-cmake -type f | head
+              exit 1
+            fi
+            cmake --install build-cmake
+            bash cmake/ci/parity_check.sh \
+              --legacy-obj "$PWD/OBJ" --cmake-build "$PWD/build-cmake" \
+              --legacy-prefix "$PWD/install-legacy" \
+              --cmake-prefix "$PWD/install-cmake"
+          '
 
       - name: Upload quickTest results
         if: always()

@@ -11,7 +11,11 @@ if [ $# -ne 2 ]; then
   echo "usage: $0 <legacy-prefix> <cmake-prefix>" >&2
   exit 2
 fi
-TREES=("$1" "$2")
+TREES=("$(cd "$1" 2>/dev/null && pwd)" "$(cd "$2" 2>/dev/null && pwd)")
+if [ -z "${TREES[0]}" ] || [ -z "${TREES[1]}" ]; then
+  echo "usage: $0 <legacy-prefix> <cmake-prefix>   (both must exist)" >&2
+  exit 2
+fi
 MPIRUN="${MPIRUN:-mpirun}"
 NP="${NP:-3}"
 WORK=$(mktemp -d)
