@@ -24,12 +24,14 @@ concurrency:
   group: cmake-parity-${{ github.ref }}
   cancel-in-progress: true
 
-# Deterministic single-node MPI wireup. GitHub runners' network namespaces
-# (unusual/multiple NIC setup) break OpenMPI's default TCP self-test, which
-# makes every -np 3 suite fail identically under BOTH build systems while
-# all serial runs pass (upstream's own runner CI sidesteps this by forcing
-# MPINUMPROC=1). Force the shared-memory BTL and loopback OOB addressing.
+# Deterministic single-node MPI settings. GitHub runners expose 2 physical
+# cores (4 vCPUs), and OpenMPI 4.x derives available slots from physical
+# cores, so the suites' `mpirun -np 3` is rejected with "not enough slots"
+# unless oversubscription is permitted (upstream's runner CI sidesteps the
+# same issue with MPINUMPROC=1). Pin the BTL to shared-memory components and
+# loopback OOB addressing; allow the 3 ranks to share the 2 cores.
 env:
+  OMPI_MCA_rmaps_base_oversubscribe: 1
   OMPI_MCA_btl: self,vader
   OMPI_MCA_pml: ob1
   OMPI_MCA_oob_tcp_if_include: lo
