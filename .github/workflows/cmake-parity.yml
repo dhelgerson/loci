@@ -64,7 +64,7 @@ jobs:
       - name: Legacy build + install
         run: make -j"$(nproc)" install_minimal
       - name: Legacy quickTest (make test)
-        run: make test
+        run: bash cmake/ci/run_logged.sh legacy-make-test make test
       - name: Legacy quickTest gate
         run: |
           echo "--- aggregated results ---"
@@ -83,7 +83,9 @@ jobs:
           cmake --build build-cmake -j"$(nproc)"
           cmake --install build-cmake
       - name: CMake quickTest (ctest)
-        run: ctest --test-dir build-cmake -L quicktest --output-on-failure
+        run: >
+          bash cmake/ci/run_logged.sh cmake-ctest ctest
+          --test-dir build-cmake -L quicktest --output-on-failure
 
       - name: Parity gate (installed trees, conf files, test results)
         run: |
@@ -201,25 +203,31 @@ jobs:
       - name: Legacy build (--bounds-check) and unit suites
         if: matrix.build == 'legacy'
         run: |
-          ./configure --no-sub-dir --no-metis --bounds-check \
-            --hdf5-dir=/usr --prefix="$PWD/install-bc"
-          make -j"$(nproc)" default
-          cd OBJ/quickTest
-          make Containers Tools FVMModUnitTests FVM \
-            LOCI_BASE="$PWD/.." TEST_BASE="$PWD"
-          ! grep -hq FAIL ./*/TestResults
+          bash cmake/ci/run_logged.sh bc-legacy bash -c '
+            set -e
+            ./configure --no-sub-dir --no-metis --bounds-check \
+              --hdf5-dir=/usr --prefix="$PWD/install-bc"
+            make -j"$(nproc)" default
+            cd OBJ/quickTest
+            make Containers Tools FVMModUnitTests FVM \
+              LOCI_BASE="$PWD/.." TEST_BASE="$PWD"
+            ! grep -hq FAIL ./*/TestResults
+          '
 
       - name: CMake build (-DLOCI_BOUNDS_CHECK=ON) and unit suites
         if: matrix.build == 'cmake'
         run: |
-          cmake -S . -B build-bc -G Ninja \
-            -DLOCI_BOUNDS_CHECK=ON \
-            -DCMAKE_INSTALL_PREFIX="$PWD/install-bc" \
-            -DLOCI_HDF5_DIR=/usr -DLOCI_NO_METIS=ON -DLOCI_NO_SUB_DIR=ON
-          cmake --build build-bc -j"$(nproc)"
-          ctest --test-dir build-bc -L quicktest \
-            -R 'quickTest\.(Containers|Tools|FVMModUnitTests|FVM)$' \
-            --output-on-failure
+          bash cmake/ci/run_logged.sh bc-cmake bash -c '
+            set -e
+            cmake -S . -B build-bc -G Ninja \
+              -DLOCI_BOUNDS_CHECK=ON \
+              -DCMAKE_INSTALL_PREFIX="$PWD/install-bc" \
+              -DLOCI_HDF5_DIR=/usr -DLOCI_NO_METIS=ON -DLOCI_NO_SUB_DIR=ON
+            cmake --build build-bc -j"$(nproc)"
+            ctest --test-dir build-bc -L quicktest \
+              -R "quickTest\\.(Containers|Tools|FVMModUnitTests|FVM)$" \
+              --output-on-failure
+          '
 
   # -----------------------------------------------------------------------
   # Packaging: source tarball from the git tree (CD artifact).
@@ -239,9 +247,13 @@ jobs:
             build-essential cmake ninja-build openmpi-bin libopenmpi-dev \
             libhdf5-dev libxml2-dev gfortran zlib1g-dev
       - name: Configure (minimal, for the tarball target)
-        run: cmake -S . -B build-dist -G Ninja -DLOCI_NO_METIS=ON
+        run: >
+          bash cmake/ci/run_logged.sh dist-configure cmake
+          -S . -B build-dist -G Ninja -DLOCI_NO_METIS=ON
       - name: Build tarball
-        run: cmake --build build-dist --target tarball
+        run: >
+          bash cmake/ci/run_logged.sh dist-tarball cmake
+          --build build-dist --target tarball
       - name: Upload tarball
         uses: actions/upload-artifact@v4
         with:
