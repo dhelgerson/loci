@@ -83,6 +83,17 @@ unstable; `stable41` is the production branch.
   tarball artifact (`tarball` target).
 - CI does not build PDF docs (no pdflatex); it uses `make install_minimal`
   on the legacy side, which installs the same files when PDFs are absent.
+- Runner gotchas encoded in the workflow: GitHub runners expose 2 physical
+  cores, and OpenMPI 4.x slots by physical core, so the suites' `mpirun
+  -np 3` needs `OMPI_MCA_rmaps_base_oversubscribe=1` (set in the workflow's
+  top-level `env`); quickTest's `tests.sh` has no `set -e`, so a launch
+  failure surfaces later as `ndiff` mismatches plus HDF5 "invalid ID"
+  noise. Neither build system auto-detects Debian's multiarch serial HDF5
+  without `h5dump` on PATH, so jobs pass `--hdf5-dir=/usr` /
+  `-DLOCI_HDF5_DIR=/usr`. Gate scripts canonicalize all directory arguments
+  (heat is built in a temp dir, so relative `LOCI_BASE` breaks).
+  `cmake/ci/run_logged.sh` wraps risky steps and emits failure log tails as
+  `::error::` annotations, which the public annotations API exposes.
 - The pre-existing Spack workflows (`.github/workflows/ci*.yaml`,
   `build-quicktest.yaml`) are untouched and still exercise the legacy flow.
 
